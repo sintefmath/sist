@@ -23,7 +23,17 @@
 #include <cuda_runtime_api.h>
 
 namespace sist {
-    namespace hp5 {
+/** Implementation of the 5:1 HistoPyramid stream compaction and expansion.
+ *
+ * Implementation of the 5:1 HistoPyramid stream compaction and expansion
+ * algorithm presented in
+ *
+ * C. Dyken, G. Ziegler, "GPU-Accelerated Data Expansion for the Marching
+ * Cubes Algorithm", GPU Technology Conference 2010,
+ *
+ */
+
+namespace hp5 {
 
 /** 5-to-1 HistoPyramid Data Store and API entry points.
   *
