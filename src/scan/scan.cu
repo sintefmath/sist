@@ -24,12 +24,12 @@
 namespace sist {
 namespace scan {
 
-static const uint warpsize_l2       = 5;
-static const uint warpsize          = 1<<warpsize_l2;
-static const uint blocksize         = 4*warpsize;
-static const uint chunksize_l2      = warpsize_l2 + 4;
-static const uint chunksize         = 1<<chunksize_l2;
-static const uint level_padding     = 512;
+static const unsigned int warpsize_l2       = 5;
+static const unsigned int warpsize          = 1<<warpsize_l2;
+static const unsigned int blocksize         = 4*warpsize;
+static const unsigned int chunksize_l2      = warpsize_l2 + 4;
+static const unsigned int chunksize         = 1<<chunksize_l2;
+static const unsigned int level_padding     = 512;
 
 /** Calculate offsets and number of elements at different levels for large scan. */
 static inline
@@ -58,7 +58,7 @@ scratchBufferBytesize( const unsigned int N )
     std::vector<size_t> N_in;
     std::vector<size_t> off;
     offsets( N_in, off, N );
-    return sizeof(uint)*(off.back());
+    return sizeof(unsigned int)*(off.back());
 }
 
 
@@ -69,17 +69,17 @@ __launch_bounds__(4*warpsize)
 reduce4x4( unsigned int*        output,
            const unsigned int*  input,
            const unsigned int   N,
-           const uint           B )
+           const unsigned int           B )
 {
-    const uint t  = threadIdx.x;
-    const uint b  = blockIdx.y*gridDim.x + blockIdx.x;
+    const unsigned int t  = threadIdx.x;
+    const unsigned int b  = blockIdx.y*gridDim.x + blockIdx.x;
     if( B <= b ) {
         return;
     }
-    const uint ix = (b<<chunksize_l2) + (t<<2);    //  index of input uint4
+    const unsigned int ix = (b<<chunksize_l2) + (t<<2);    //  index of input uint4
 
     // -- Let each thread compute the sum of 4 elements individually
-    uint thread_sum = 0;
+    unsigned int thread_sum = 0;
     if( ix+3 < N ) {
         uint4 t = *(uint4*)(input + ix);
         thread_sum += t.x + t.y + t.z + t.w;
@@ -91,7 +91,7 @@ reduce4x4( unsigned int*        output,
     }
 
     // -- Let the the three upper warps write their result
-    __shared__ volatile uint sh[ 3*warpsize ];
+    __shared__ volatile unsigned int sh[ 3*warpsize ];
     if( warpsize <= t ) {
         sh[ t-warpsize ] = thread_sum;
     }
@@ -100,14 +100,14 @@ reduce4x4( unsigned int*        output,
     // -- Let the first warp reduce the 3*warpsize values
     if( t < warpsize ) {
         sh[t] = thread_sum + sh[t] + sh[t+warpsize] + sh[t+2*warpsize];
-        for(uint r=warpsize_l2-1; r>0; r--) {
+        for(unsigned int r=warpsize_l2-1; r>0; r--) {
             if( t < (1<<r) ) {
                 sh[t] = sh[2*t+0] + sh[2*t+1];
             }
         }
         // -- Let thread 0 write the total
         if( t == 0 ) {
-            uint sum = sh[0] + sh[1];
+            unsigned int sum = sh[0] + sh[1];
             output[ b ] = sum;
         }
     }
@@ -118,24 +118,24 @@ template<bool inclusive, bool pull, bool push, bool write_sum>
 __global__
 __launch_bounds__(4*warpsize)
 void
-scan4x4( uint*         output,
-         uint*         apex,
-         uint*         sum,
-         const uint*   input,
-         const uint    N,
-         const uint    B )
+scan4x4( unsigned int*         output,
+         unsigned int*         apex,
+         unsigned int*         sum,
+         const unsigned int*   input,
+         const unsigned int    N,
+         const unsigned int    B )
 {
-    const uint blocksize    = 4*warpsize;       // number of threads in block
-    const uint t            = threadIdx.x;      // thread id
-    const uint warp         = t>>warpsize_l2;   // warp of thread
-    const uint wt           = t&(warpsize-1);   // thread id within warp
-    const uint b            = blockIdx.y*gridDim.x + blockIdx.x;
+    const unsigned int blocksize    = 4*warpsize;       // number of threads in block
+    const unsigned int t            = threadIdx.x;      // thread id
+    const unsigned int warp         = t>>warpsize_l2;   // warp of thread
+    const unsigned int wt           = t&(warpsize-1);   // thread id within warp
+    const unsigned int b            = blockIdx.y*gridDim.x + blockIdx.x;
     if( B <= b ) {
         return;
     }
-    const uint ix           = (b<<chunksize_l2) + (t<<2);    //  index of input uint4
+    const unsigned int ix           = (b<<chunksize_l2) + (t<<2);    //  index of input uint4
 
-    __shared__ volatile uint row[ blocksize ];
+    __shared__ volatile unsigned int row[ blocksize ];
 
     // -- fetch four values and store sum in row[t]
     uint4 vals;
@@ -164,7 +164,7 @@ scan4x4( uint*         output,
 
     __syncthreads();
     if( t==0 ) {
-        uint s = 0, next;
+        unsigned int s = 0, next;
         if( pull ) {
             s = apex[ b ];
         }
@@ -221,11 +221,11 @@ scan4x4( uint*         output,
 template<bool inclusive, bool pad, bool write_sum>
 static
 void
-run( uint*         output_d,
-     uint*         scratch_d,
-     uint*         sum_d,
-     const uint*   input_d,
-     const uint    N,
+run( unsigned int*         output_d,
+     unsigned int*         scratch_d,
+     unsigned int*         sum_d,
+     const unsigned int*   input_d,
+     const unsigned int    N,
      cudaStream_t  stream )
 {
     if( N <= chunksize ) {
@@ -241,16 +241,16 @@ run( uint*         output_d,
         std::vector<size_t> N_in;
         std::vector<size_t> off;
         offsets( N_in, off, N );
-        uint levels = N_in.size();
+        unsigned int levels = N_in.size();
 
         std::vector<dim3> grids(levels-1);
-        for(uint i=0; i<levels-1; i++ ) {
-            uint n = N_in[i+1];
+        for(unsigned int i=0; i<levels-1; i++ ) {
+            unsigned int n = N_in[i+1];
             if( n <= 512 ) {
                 grids[i] = dim3( n );
             }
             else {
-                uint nn = uint(std::ceil( std::sqrt(n) ));
+                unsigned int nn = unsigned int(std::ceil( std::sqrt(n) ));
                 grids[i] = dim3( nn, (n+nn-1)/nn );
             }
         }
@@ -262,7 +262,7 @@ run( uint*         output_d,
                    N_in[0],
                    N_in[1] );
         // --- intermediate level reductions
-        for(uint i=1; i<levels-1; i++ ) {
+        for(unsigned int i=1; i<levels-1; i++ ) {
             reduce4x4<<< grids[i], blocksize, 0, stream >>>
                      ( scratch_d + off[i],
                        scratch_d + off[i-1],
@@ -279,7 +279,7 @@ run( uint*         output_d,
                  N_in[levels-1],
                  1 );
         // --- scan intermediate levels top-to-bottom, pulling block offset
-        for(uint i=levels-2; i>0; i--) {
+        for(unsigned int i=levels-2; i>0; i--) {
             scan4x4<false, true, false, false >
                    <<< grids[i], blocksize, 0, stream >>>
                    ( scratch_d + off[i-1],
@@ -303,14 +303,14 @@ run( uint*         output_d,
 }
 
 void
-inclusiveScan( uint*         output_d,
+inclusiveScan( unsigned int*         output_d,
                void*         scratch_d,
-               const uint*   input_d,
-               const uint    N,
+               const unsigned int*   input_d,
+               const unsigned int    N,
                cudaStream_t  stream )
 {
     run<true, false, false>( output_d,
-                             static_cast<uint*>( scratch_d ),
+                             static_cast<unsigned int*>( scratch_d ),
                              NULL,
                              input_d,
                              N,
@@ -318,15 +318,15 @@ inclusiveScan( uint*         output_d,
 }
 
 void
-inclusiveScanWriteSum( uint*         output_d,
-                       uint*         sum_d,
+inclusiveScanWriteSum( unsigned int*         output_d,
+                       unsigned int*         sum_d,
                        void*         scratch_d,
-                       const uint*   input_d,
-                       const uint    N,
+                       const unsigned int*   input_d,
+                       const unsigned int    N,
                        cudaStream_t  stream )
 {
     run<true, false, true>( output_d,
-                            static_cast<uint*>( scratch_d ),
+                            static_cast<unsigned int*>( scratch_d ),
                             sum_d,
                             input_d,
                             N,
@@ -334,14 +334,14 @@ inclusiveScanWriteSum( uint*         output_d,
 }
 
 void
-exclusiveScan( uint*         output_d,
+exclusiveScan( unsigned int*         output_d,
                void*         scratch_d,
-               const uint*   input_d,
-               const uint    N,
+               const unsigned int*   input_d,
+               const unsigned int    N,
                cudaStream_t  stream )
 {
     run<false, false, false>( output_d,
-                              static_cast<uint*>( scratch_d ),
+                              static_cast<unsigned int*>( scratch_d ),
                               NULL,
                               input_d,
                               N,
@@ -349,15 +349,15 @@ exclusiveScan( uint*         output_d,
 }
 
 void
-exclusiveScanWriteSum( uint*         output_d,
-                       uint*         sum_d,
+exclusiveScanWriteSum( unsigned int*         output_d,
+                       unsigned int*         sum_d,
                        void*         scratch_d,
-                       const uint*   input_d,
-                       const uint    N,
+                       const unsigned int*   input_d,
+                       const unsigned int    N,
                        cudaStream_t  stream )
 {
     run<false, false, true>( output_d,
-                             static_cast<uint*>( scratch_d ),
+                             static_cast<unsigned int*>( scratch_d ),
                              sum_d,
                              input_d,
                              N,
@@ -365,14 +365,14 @@ exclusiveScanWriteSum( uint*         output_d,
 }
 
 void
-exclusiveScanPadWithSum( uint*         output_d,
+exclusiveScanPadWithSum( unsigned int*         output_d,
                          void*         scratch_d,
-                         const uint*   input_d,
-                         const uint    N,
+                         const unsigned int*   input_d,
+                         const unsigned int    N,
                          cudaStream_t  stream )
 {
     run<false, true, false>( output_d,
-                             static_cast<uint*>( scratch_d ),
+                             static_cast<unsigned int*>( scratch_d ),
                              NULL,
                              input_d,
                              N,
@@ -380,15 +380,15 @@ exclusiveScanPadWithSum( uint*         output_d,
 }
 
 void
-exclusiveScanPadWithSumWriteSum( uint*         output_d,
-                                 uint*         sum_d,
+exclusiveScanPadWithSumWriteSum( unsigned int*         output_d,
+                                 unsigned int*         sum_d,
                                  void*         scratch_d,
-                                 const uint*   input_d,
-                                 const uint    N,
+                                 const unsigned int*   input_d,
+                                 const unsigned int    N,
                                  cudaStream_t  stream )
 {
     run<false, true, true>( output_d,
-                            static_cast<uint*>( scratch_d ),
+                            static_cast<unsigned int*>( scratch_d ),
                             sum_d,
                             input_d,
                             N,

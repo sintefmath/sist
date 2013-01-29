@@ -24,8 +24,8 @@
 struct TestPredicate
 {
     __device__ __inline__
-    uint
-    operator()( const uint index ) const
+    unsigned int
+    operator()( const unsigned int index ) const
     {
         return m_input_dptr[index] < m_threshold ? 1 : 0;
     }
@@ -38,7 +38,7 @@ struct TestEmitter
 {
     __device__ __inline__
     void
-    operator()( const uint output_index, const uint input_index, const uint output_clone )
+    operator()( const unsigned int output_index, const unsigned int input_index, const unsigned int output_clone )
     {
         m_output_dptr[ output_index ] = m_input_dptr[ input_index ];
     }
