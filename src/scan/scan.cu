@@ -250,7 +250,7 @@ run( unsigned int*         output_d,
                 grids[i] = dim3( n );
             }
             else {
-                unsigned int nn = unsigned int(std::ceil( std::sqrt(n) ));
+                unsigned int nn = unsigned int(std::ceil( std::sqrt( static_cast<double>( n ) ) ));
                 grids[i] = dim3( nn, (n+nn-1)/nn );
             }
         }
