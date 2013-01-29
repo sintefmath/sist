@@ -22,6 +22,10 @@
 #include <vector>
 #include <cuda_runtime_api.h>
 
+#ifdef _WIN32
+#define __func__ __FUNCTION__
+#endif
+
 namespace sist {
 /** Implementation of the 5:1 HistoPyramid stream compaction and expansion.
  *
