@@ -72,6 +72,7 @@ IF( ENABLE_CUDA )
         FIND_PATH( CUDPP_INCLUDE_DIR cudpp.h PATHS /work/cudpp_src_2.0/include )
         INCLUDE_DIRECTORIES(
             ${CUDPP_INCLUDE_DIR}
+            ${Boost_INCLUDE_DIR}
         )
 
         FILE( GLOB CUSIST_TEST_HDRS "test/scan/*.hpp"
