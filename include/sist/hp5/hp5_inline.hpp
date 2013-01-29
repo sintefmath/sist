@@ -49,7 +49,7 @@ class HP5
 public:
 
     /** Allocate a HistoPyramid that can process N input elements. */
-    HP5( uint N );
+    HP5( unsigned int N );
 
 
     /** Analyze input data and build the HistoPyramid.
@@ -66,8 +66,8 @@ public:
       * struct TestPredicate
       * {
       *     __device__ __inline__
-      *    uint
-      *    operator()( const uint index ) const
+      *    unsigned int
+      *    operator()( const unsigned int index ) const
       *    {
       *        return m_input_d[ index ] < m_threshold ? 1 : 0;
       *    }
@@ -97,7 +97,7 @@ public:
       * \note Requires that build() has been invoked, or there is no result to
       *       return.
       */
-    uint
+    unsigned int
     outputSize();
 
     /** Populate the output stream.
@@ -118,9 +118,9 @@ public:
       * {
       *     __device__ __inline__
       *     void
-      *     operator()( const uint output_index,
-      *                 const uint input_index,
-      *                 const uint clone_index )
+      *     operator()( const unsigned int output_index,
+      *                 const unsigned int input_index,
+      *                 const unsigned int clone_index )
       *     {
       *         m_output_d[ output_index ] = m_input_d[ input_index ];
       *     }
@@ -161,25 +161,25 @@ protected:
     State                       m_state;
 
     /** The number of elements in the input stream. */
-    const uint                  m_N;
+    const unsigned int                  m_N;
 
     /** The number of elements in the output stream (after hp buildup). */
-    uint                        m_top;
+    unsigned int                        m_top;
     /** The number of reduction levels required. */
-    uint                        m_levels;
-    uint                        m_first_single_level;
-    uint                        m_first_double_level;
-    uint                        m_first_triple_level;
+    unsigned int                        m_levels;
+    unsigned int                        m_first_single_level;
+    unsigned int                        m_first_double_level;
+    unsigned int                        m_first_triple_level;
     /** The number of elements in each level. */
-    std::vector<uint>           m_level_size;
+    std::vector<unsigned int>           m_level_size;
     /** Number of elements in the HP buffer. */
-    uint                        m_size;
+    unsigned int                        m_size;
     /** Position of each level in the HP buffer. */
-    std::vector<uint>           m_offsets;
+    std::vector<unsigned int>           m_offsets;
     /** Device memory buffer to hold histopyramid. */
     uint4*                      m_histopyramid_dptr;
     /** Device memory buffer to hold sidebands. */
-    uint*                       m_sideband_dptr;
+    unsigned int*                       m_sideband_dptr;
 
     void
     fillWithGarbage();
@@ -195,7 +195,7 @@ namespace HP5Internal {
   *
   * \tparam Predicate  The predicate functor class, see HP5::build().
   * \param d_hp_0      Histopyramid level i+0, padded to 160 uint4's.
-  * \param d_sb_0      Sideband level i+0, padded to 160 uint's.
+  * \param d_sb_0      Sideband level i+0, padded to 160 unsigned int's.
   * \param predicate   The predicuate functor object.
   * \param N           Number of elements in input stream.
   */
@@ -204,13 +204,13 @@ void
 __global__
 __launch_bounds__( 160 )
 buildup_base_single( uint4* __restrict__  d_hp_0,
-                     uint*  __restrict__  d_sb_0,
+                     unsigned int*  __restrict__  d_sb_0,
                      const Predicate      predicate,
-                     const uint           N )
+                     const unsigned int           N )
 {
-    __shared__ uint sb[160];
-    const uint gid5 = 160*blockIdx.x + threadIdx.x;
-    uint v = 0;
+    __shared__ unsigned int sb[160];
+    const unsigned int gid5 = 160*blockIdx.x + threadIdx.x;
+    unsigned int v = 0;
     if( gid5 < N ) {
         v = predicate(gid5);
     }
@@ -221,7 +221,7 @@ buildup_base_single( uint4* __restrict__  d_hp_0,
                                  sb[ 5*threadIdx.x + 1 ],
                                  sb[ 5*threadIdx.x + 2 ],
                                  sb[ 5*threadIdx.x + 3 ] );
-        uint sum = sums.x + sums.y + sums.z + sums.w + sb[ 5*threadIdx.x + 4 ];
+        unsigned int sum = sums.x + sums.y + sums.z + sums.w + sb[ 5*threadIdx.x + 4 ];
         d_hp_0[ 32*blockIdx.x + threadIdx.x ] = sums;
         d_sb_0[ 32*blockIdx.x + threadIdx.x ] = sum;
     }
@@ -230,7 +230,7 @@ buildup_base_single( uint4* __restrict__  d_hp_0,
 /** Standard single level reduction.
   *
   * \param d_hp_0  Histopyramid level i+0, padded to 160 uint4's.
-  * \param d_sb_0  Sideband level i+0, padded to 160 uint's.
+  * \param d_sb_0  Sideband level i+0, padded to 160 unsigned int's.
   * \param d_sb_1  Sideband level i+1.
   * \param N_1     Quintuples in level i+1.
   */
@@ -238,12 +238,12 @@ void
 __global__
 __launch_bounds__( 160 )
 buildup_level_single( uint4* __restrict__  d_hp_0,
-                      uint*  __restrict__  d_sb_0,
-                      uint*  __restrict__  d_sb_1,
-                      const uint           N_l )
+                      unsigned int*  __restrict__  d_sb_0,
+                      unsigned int*  __restrict__  d_sb_1,
+                      const unsigned int           N_l )
 {
-    __shared__ uint sb[160];
-    const uint gid5 = 160*blockIdx.x + threadIdx.x;
+    __shared__ unsigned int sb[160];
+    const unsigned int gid5 = 160*blockIdx.x + threadIdx.x;
     if( gid5 < N_l ) {
         sb[threadIdx.x] = d_sb_1[ gid5 ];
     }
@@ -256,7 +256,7 @@ buildup_level_single( uint4* __restrict__  d_hp_0,
                                  sb[ 5*threadIdx.x + 1 ],
                                  sb[ 5*threadIdx.x + 2 ],
                                  sb[ 5*threadIdx.x + 3 ] );
-        uint sum = sums.x + sums.y + sums.z + sums.w + sb[ 5*threadIdx.x + 4 ];
+        unsigned int sum = sums.x + sums.y + sums.z + sums.w + sb[ 5*threadIdx.x + 4 ];
         d_hp_0[ 32*blockIdx.x + threadIdx.x ] = sums;
         d_sb_0[ 32*blockIdx.x + threadIdx.x ] = sum;
     }
@@ -265,7 +265,7 @@ buildup_level_single( uint4* __restrict__  d_hp_0,
 /** Double level base population.
   *
   * \param d_hp_0     Histopyramid level i+0, padded to 160 uint4's.
-  * \param d_sb_0     Sideband level i+0, padded to 160 uint's.
+  * \param d_sb_0     Sideband level i+0, padded to 160 unsigned int's.
   * \param d_hp_1     Histopyramid level i+1, padded to 160 uint4's.
   * \param N          Number of elements in input stream.
   */
@@ -274,33 +274,33 @@ __global__
 void
 __launch_bounds__( 160 )
 buildup_base_double( uint4* __restrict__  d_hp_0,
-                     uint*  __restrict__  d_sb_0,
+                     unsigned int*  __restrict__  d_sb_0,
                      uint4* __restrict__  d_hp_1,
                      const Predicate      predicate,
-                     const uint           N )
+                     const unsigned int           N )
 {
-    __shared__ uint sb[160];
-    __shared__ uint sh[800];
-    const uint w  = threadIdx.x / 32;
-    const uint w5 = 5*w;
-    const uint wt = threadIdx.x % 32;
-    const uint wt5 = 5*wt;
-    const uint b32 = 32*blockIdx.x;
+    __shared__ unsigned int sb[160];
+    __shared__ unsigned int sh[800];
+    const unsigned int w  = threadIdx.x / 32;
+    const unsigned int w5 = 5*w;
+    const unsigned int wt = threadIdx.x % 32;
+    const unsigned int wt5 = 5*wt;
+    const unsigned int b32 = 32*blockIdx.x;
     // We let each warp process its own 5:1 reduction of a 160-element chunk.
     // Thus, there is no need to synchronize. Also, the shared mem accesses
     // are interlaced such that adjacent threads access adjacent elements,
     // eliminating bank conflicts.
-    for(uint p=0; p<5; p++) {
-        const uint gid5 = 5*5*b32 + (w5+p)*32 + wt;
-        uint v = 0;
+    for(unsigned int p=0; p<5; p++) {
+        const unsigned int gid5 = 5*5*b32 + (w5+p)*32 + wt;
+        unsigned int v = 0;
         if( gid5 < N ) {
             v = predicate( gid5 );
         }
         sh[ 32*(w5+p) + wt ] = v;
     }
-    const uint sho = w5*32 + wt5;
+    const unsigned int sho = w5*32 + wt5;
     uint4 bl = make_uint4( sh[ sho+0 ], sh[ sho+1 ], sh[ sho+2 ], sh[ sho+3 ]);
-    uint b_o = 5*b32 + threadIdx.x;
+    unsigned int b_o = 5*b32 + threadIdx.x;
     if( b_o < (N+3)/4 ) { // avoid excessive padding
         d_hp_1[ b_o ] = bl;
     }
@@ -317,23 +317,23 @@ __global__
 void
 __launch_bounds__( 160 )
 buildup_level_double( uint4* __restrict__  d_hp_0,
-                      uint*  __restrict__  d_sb_0,
+                      unsigned int*  __restrict__  d_sb_0,
                       uint4* __restrict__  d_hp_1,
-                      uint*  __restrict__  d_sb_2,
-                      const uint           N )
+                      unsigned int*  __restrict__  d_sb_2,
+                      const unsigned int           N )
 {
-    __shared__ uint sb[160];
-    __shared__ uint sh[800];
-    const uint w  = threadIdx.x / 32;
-    const uint w5 = 5*w;
-    const uint wt = threadIdx.x % 32;
-    const uint wt5 = 5*wt;
-    const uint b32 = 32*blockIdx.x;
+    __shared__ unsigned int sb[160];
+    __shared__ unsigned int sh[800];
+    const unsigned int w  = threadIdx.x / 32;
+    const unsigned int w5 = 5*w;
+    const unsigned int wt = threadIdx.x % 32;
+    const unsigned int wt5 = 5*wt;
+    const unsigned int b32 = 32*blockIdx.x;
     // Step 1: Populate hp_b and sb. Each warp calculates a 5:1 160-element
     // chunk, so there is no need for synchronization.
-    for(uint p=0; p<5; p++) {
-        const uint gid5 = 5*5*b32 + (w5+p)*32 + wt;
-        uint v = gid5<N ? d_sb_2[ gid5 ] : 0;
+    for(unsigned int p=0; p<5; p++) {
+        const unsigned int gid5 = 5*5*b32 + (w5+p)*32 + wt;
+        unsigned int v = gid5<N ? d_sb_2[ gid5 ] : 0;
         sh[ 32*(w5+p) + wt ] = v;
     }
     // write the first four elements of the sideband to hp
@@ -350,7 +350,7 @@ buildup_level_double( uint4* __restrict__  d_hp_0,
     __syncthreads();
     if( w == 0 ) {
         uint4 sums = make_uint4( sb[ wt5+0 ], sb[ wt5+1 ], sb[ wt5+2 ], sb[ wt5+3 ] );
-        uint sum = sums.x + sums.y + sums.z + sums.w + sb[ wt5 + 4 ];
+        unsigned int sum = sums.x + sums.y + sums.z + sums.w + sb[ wt5 + 4 ];
         d_hp_0[ b32 + wt ] = sums;
         d_sb_0[ b32 + wt ] = sum;
     }
@@ -370,39 +370,39 @@ __global__
 void
 __launch_bounds__( 160 )
 buildup_base_triple( uint4* __restrict__  d_hp_c,
-                     uint*  __restrict__  d_sb_c,
+                     unsigned int*  __restrict__  d_sb_c,
                      uint4* __restrict__  d_hp_b,
                      uint4* __restrict__  d_hp_a,
                      const Predicate      predicate,
-                     const uint           N )
+                     const unsigned int           N )
 {
-    __shared__ uint sb[800];
-    __shared__ uint sh[800];
-    const uint w  = threadIdx.x / 32;
-    const uint wt = threadIdx.x % 32;
-    const uint b32 = 32*blockIdx.x;
-    const uint sh_i = 160*w + 5*wt;
-    const uint hp_b_o = 5*32*blockIdx.x + 32*w + wt;
+    __shared__ unsigned int sb[800];
+    __shared__ unsigned int sh[800];
+    const unsigned int w  = threadIdx.x / 32;
+    const unsigned int wt = threadIdx.x % 32;
+    const unsigned int b32 = 32*blockIdx.x;
+    const unsigned int sh_i = 160*w + 5*wt;
+    const unsigned int hp_b_o = 5*32*blockIdx.x + 32*w + wt;
     // There are 5 warps, each with 32 threads.
     // Each warp processes 5 input stream element chunks of size 160
     // sequentially. Each iteration produces 128 base level elements (outputted)
     // and 32 sideband elements. The sideband elements are stored interleaved
     // with the other warps, such that the shared mem consists of 160*5=800
     // sideband elements.
-    for(uint q=0; q<5; q++) {
+    for(unsigned int q=0; q<5; q++) {
         // Populate hp_b and sb. Each warp calculates a 5:1 160-element chunk,
         // so there is no need for synchronization.
-        for(uint p=0; p<5; p++) {
-            const uint gid5 = 5*5*5*32*blockIdx.x + 5*5*32*w + 32*5*q + 32*p + wt;
-            uint v = 0;
+        for(unsigned int p=0; p<5; p++) {
+            const unsigned int gid5 = 5*5*5*32*blockIdx.x + 5*5*32*w + 32*5*q + 32*p + wt;
+            unsigned int v = 0;
             if( gid5 < N ) {
                 v = predicate(gid5);
             }
             sh[ 5*32*w + 32*p + wt ] = v;
         }
         // write the first four elements of the sideband to hp
-        const uint sb_b_o = 160*w + 32*q + wt;
-        const uint hp_a_o = 5*5*b32 + sb_b_o;
+        const unsigned int sb_b_o = 160*w + 32*q + wt;
+        const unsigned int hp_a_o = 5*5*b32 + sb_b_o;
         uint4 bl = make_uint4( sh[ sh_i+0 ], sh[ sh_i+1 ], sh[ sh_i+2 ], sh[ sh_i+3 ]);
         if( hp_a_o < (N+3)/4 ) {
             d_hp_a[ hp_a_o ] = bl;
@@ -445,11 +445,11 @@ __global__
 void
 __launch_bounds__( 128 )
 buildup_apex( uint4* __restrict__  d_hp_012,
-              uint*  __restrict__  d_sb_3,
-              const uint           N_3 )
+              unsigned int*  __restrict__  d_sb_3,
+              const unsigned int           N_3 )
 {
     __shared__ uint4 hp_012[32];
-    __shared__ uint sb[128];
+    __shared__ unsigned int sb[128];
     sb[ threadIdx.x ] = threadIdx.x < N_3 ? d_sb_3[ threadIdx.x ] : 0 ;
     // The computations are done solely by a single warp.
     __syncthreads();
@@ -458,7 +458,7 @@ buildup_apex( uint4* __restrict__  d_hp_012,
                                  sb[ 5*threadIdx.x + 1 ],
                                  sb[ 5*threadIdx.x + 2 ],
                                  sb[ 5*threadIdx.x + 3 ] );
-        uint sum = sums.x+sums.y+sums.z+sums.w+sb[5*threadIdx.x+4];
+        unsigned int sum = sums.x+sums.y+sums.z+sums.w+sb[5*threadIdx.x+4];
         hp_012[7+threadIdx.x] = sums;
         sb[ threadIdx.x ] = sum;
     }
@@ -467,13 +467,13 @@ buildup_apex( uint4* __restrict__  d_hp_012,
                                  sb[ 5*threadIdx.x + 1 ],
                                  sb[ 5*threadIdx.x + 2 ],
                                  sb[ 5*threadIdx.x + 3 ] );
-        uint sum = sums.x+sums.y+sums.z+sums.w+sb[5*threadIdx.x+4];
+        unsigned int sum = sums.x+sums.y+sums.z+sums.w+sb[5*threadIdx.x+4];
         hp_012[2+threadIdx.x] = sums;
         sb[ threadIdx.x ] = sum;
     }
     if( threadIdx.x < 1 ) {
         uint4 sums = make_uint4( sb[ 0 ], sb[ 1 ], sb[ 2 ], sb[ 3 ] );
-        uint sum = sums.x+sums.y+sums.z+sums.w+sb[ 4 ];
+        unsigned int sum = sums.x+sums.y+sums.z+sums.w+sb[ 4 ];
         hp_012[1] = sums;
         hp_012[0] = make_uint4( sum, 0, 0, 0 );
     }
@@ -500,7 +500,7 @@ texture<uint4, 1, cudaReadModeElementType>  HP5_hp_tex;
 static __constant__ uint4                   HP5_hp_const[528];      //=2112/4
 
 /** Constant memory chunk that contains the offsets of the levels. */
-static __constant__ uint                    HP5_const_offsets[32];
+static __constant__ unsigned int                    HP5_const_offsets[32];
 
 /** Traverse a histopyramid.
   * \tparam Emitter The emitter functor class, see HP5::compact().
@@ -517,13 +517,13 @@ __global__
 void
 traverse( Emitter              emitter,
           uint4* __restrict__  d_hp,
-          const uint           M,
-          const uint           max_level )
+          const unsigned int           M,
+          const unsigned int           max_level )
 {
-    const uint ix = blockDim.x * blockIdx.x + threadIdx.x;
+    const unsigned int ix = blockDim.x * blockIdx.x + threadIdx.x;
     if( ix < M ) {
-        uint key = ix;
-        uint pos = 0;
+        unsigned int key = ix;
+        unsigned int pos = 0;
         int l=0;
         if( use_constmem ) {
             for(l=0; l<4; l++ ) {
@@ -584,22 +584,22 @@ traverse( Emitter              emitter,
 
 
 
-HP5::HP5(uint N)
+HP5::HP5(unsigned int N)
     : m_N( N ),
       m_state( STATE_INITIALIZED )
 {
     bool verbose = false;
 
     // Determine number of levels, we enforce that there is at least 4 levels
-    m_levels = (uint)ceilf( log2((float)N)/log2(5.0f));
+    m_levels = (unsigned int)ceilf( log2((float)N)/log2(5.0f));
     if( m_levels < 4 ) {
         m_levels = 4;
     }
 
     // Determine size of each level
-    uint n = m_N;
+    unsigned int n = m_N;
     m_level_size.resize( m_levels );
-    for(uint l=0; l<m_levels; l++) {
+    for(unsigned int l=0; l<m_levels; l++) {
         m_level_size[ m_levels - 1 - l ] = n;
         n = (n+4)/5;
     }
@@ -621,15 +621,15 @@ HP5::HP5(uint N)
     m_offsets[1] = 2;
     m_offsets[2] = 7;
     m_size = 32;
-    for(uint l=m_first_single_level; l<m_first_double_level; l++ ) {
+    for(unsigned int l=m_first_single_level; l<m_first_double_level; l++ ) {
         m_offsets[l] = m_size;
         m_size += 5u*32u*( ( m_level_size[l]+159u)/160u );
     }
-    for(uint l=m_first_double_level; l<m_first_triple_level; l++ ) {
+    for(unsigned int l=m_first_double_level; l<m_first_triple_level; l++ ) {
         m_offsets[l] = m_size;
         m_size += 5u*32u*(( m_level_size[l]+799u)/800u );
     }
-    for(uint l=m_first_triple_level; l<m_levels; l++ ) {
+    for(unsigned int l=m_first_triple_level; l<m_levels; l++ ) {
         m_offsets[l] = m_size;
         m_size += 5u*32u*(( m_level_size[l]+799u)/800u );
     }
@@ -642,7 +642,7 @@ HP5::HP5(uint N)
         std::cerr << "HP5: first double level=" << m_first_double_level << std::endl;
         std::cerr << "HP5: first triple level=" << m_first_triple_level << std::endl;
 
-        for(uint l=0; l<m_levels; l++ ) {
+        for(unsigned int l=0; l<m_levels; l++ ) {
             std::cerr << "HP5: L" << l
                       << ": size=" << m_level_size[l]
                       << ", hp offset=" << (4*m_offsets[l])
@@ -655,7 +655,7 @@ HP5::HP5(uint N)
     }
 
     // Allocate memory
-    cudaMalloc( reinterpret_cast<void**>(&m_histopyramid_dptr), 4*sizeof(uint)*m_size );
+    cudaMalloc( reinterpret_cast<void**>(&m_histopyramid_dptr), 4*sizeof(unsigned int)*m_size );
     if( m_histopyramid_dptr == NULL ) {
         std::cerr << "HP5: Failed to allocate histopyramid buffer." << std::endl;
         m_state = STATE_ERROR;
@@ -664,7 +664,7 @@ HP5::HP5(uint N)
 
 
 
-    cudaMalloc( reinterpret_cast<void**>(&m_sideband_dptr), sizeof(uint)*m_size );
+    cudaMalloc( reinterpret_cast<void**>(&m_sideband_dptr), sizeof(unsigned int)*m_size );
     if( m_sideband_dptr == NULL ) {
         std::cerr << "HP5: Failed to allocate sideband buffer." << std::endl;
         m_state = STATE_ERROR;
@@ -676,7 +676,7 @@ HP5::HP5(uint N)
 
     cudaMemcpyToSymbol( HP5Internal::HP5_const_offsets,
                         m_offsets.data(),
-                        m_offsets.size()*sizeof(uint),
+                        m_offsets.size()*sizeof(unsigned int),
                         0,
                         cudaMemcpyHostToDevice );
 
@@ -691,8 +691,8 @@ HP5::HP5(uint N)
 void
 HP5::fillWithGarbage()
 {
-    cudaMemset( m_histopyramid_dptr, 0xCE, 4*sizeof(uint)*m_size );
-    cudaMemset( m_sideband_dptr, 0xCE, sizeof(uint)*m_size );
+    cudaMemset( m_histopyramid_dptr, 0xCE, 4*sizeof(unsigned int)*m_size );
+    cudaMemset( m_sideband_dptr, 0xCE, sizeof(unsigned int)*m_size );
     m_top = ~0;
 }
 
@@ -805,7 +805,7 @@ HP5::build( const Predicate predicate, bool profile )
         cudaEventRecord( events.back() );
     }
     // Get result
-    cudaMemcpy( &m_top, m_histopyramid_dptr, sizeof(uint), cudaMemcpyDeviceToHost );
+    cudaMemcpy( &m_top, m_histopyramid_dptr, sizeof(unsigned int), cudaMemcpyDeviceToHost );
     if( profile ) {
         cudaEventSynchronize( events.back() );
         std::cerr << "HP5 Profile results for build pass:" << std::endl;
@@ -828,7 +828,7 @@ HP5::build( const Predicate predicate, bool profile )
     m_state = STATE_PYRAMID_BUILT;
 }
 
-uint
+unsigned int
 HP5::outputSize()
 {
     if( m_state == STATE_ERROR ) {
@@ -863,9 +863,9 @@ HP5::compact( Emitter  emitter,
 
     std::vector<cudaEvent_t> events;
 
-    uint bs = 256;
-    uint gs = (m_top+bs-1)/bs;
-    uint path = (use_texfetch ? 2 : 0 ) + (use_constmem ? 1 : 0 );
+    unsigned int bs = 256;
+    unsigned int gs = (m_top+bs-1)/bs;
+    unsigned int path = (use_texfetch ? 2 : 0 ) + (use_constmem ? 1 : 0 );
 
     if( profile ) {
         std::cerr << "HP5: compact: bs=" << bs << ", gs=" << gs << ", path=" << path << std::endl;
@@ -891,7 +891,7 @@ HP5::compact( Emitter  emitter,
                              HP5Internal::HP5_hp_tex,
                              m_histopyramid_dptr,
                              cudaCreateChannelDesc( 32, 32, 32, 32, cudaChannelFormatKindUnsigned ),
-                             4*sizeof(uint)*m_size );
+                             4*sizeof(unsigned int)*m_size );
         }
 
         switch( path ) {

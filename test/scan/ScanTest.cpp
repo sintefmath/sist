@@ -73,18 +73,18 @@ int main( int argc, char** argv )
     cudaSetDevice( cuda_device );
 
 
-    std::vector<uint> input( 0x03fffc00 );
-    std::vector<uint> output( input.size()+1 );
+    std::vector<unsigned int> input( 0x03fffc00 );
+    std::vector<unsigned int> output( input.size()+1 );
 
-    uint* input_d;
-    cudaMalloc( &input_d, sizeof(uint)*(input.size()) );
+    unsigned int* input_d;
+    cudaMalloc( &input_d, sizeof(unsigned int)*(input.size()) );
 
 
-    uint* scratch_d;
+    unsigned int* scratch_d;
     cudaMalloc( &scratch_d, sist::scan::scratchBufferBytesize( input.size() ) );
 
-    uint* output_d;
-    cudaMalloc( &output_d, sizeof(uint)*(output.size()) );
+    unsigned int* output_d;
+    cudaMalloc( &output_d, sizeof(unsigned int)*(output.size()) );
 
     CHECK_CUDA;
 
@@ -105,7 +105,7 @@ int main( int argc, char** argv )
 //            input[i] = i%13;// (unsigned int)(128*drand48());
             input[i] = (unsigned int)(128*drand48());
         }
-        cudaMemcpy( input_d, input.data(), sizeof(uint)*input.size(), cudaMemcpyHostToDevice );
+        cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );
 
         float ref;
         if(1) {
@@ -114,7 +114,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
 
             CUDPPConfiguration cudpp_config;
             cudpp_config.op 		= CUDPP_ADD;
@@ -146,12 +146,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 if( output[i] != sum ) {
                     fails++;
@@ -172,7 +172,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::inclusiveScan( output_d,
                                      scratch_d,
@@ -188,12 +188,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 sum += input[i];
                 if( output[i] != sum ) {
@@ -210,9 +210,9 @@ int main( int argc, char** argv )
         // inclusive scan with sum
         if(1) {
             unsigned int* zerocopy;
-            cudaHostAlloc( &zerocopy, sizeof(uint), cudaHostAllocMapped );
+            cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
 
-            uint* zerocopy_d;
+            unsigned int* zerocopy_d;
             cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
             CHECK_CUDA;
 
@@ -223,7 +223,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::inclusiveScanWriteSum( output_d,
                                              zerocopy_d,
@@ -241,12 +241,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 sum += input[i];
                 if( output[i] != sum ) {
@@ -268,7 +268,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::exclusiveScan( output_d,
                                      scratch_d,
@@ -284,12 +284,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 if( output[i] != sum ) {
                     fails++;
@@ -307,9 +307,9 @@ int main( int argc, char** argv )
         // exclusive scan with sum
         if(1) {
             unsigned int* zerocopy;
-            cudaHostAlloc( &zerocopy, sizeof(uint), cudaHostAllocMapped );
+            cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
 
-            uint* zerocopy_d;
+            unsigned int* zerocopy_d;
             cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
             CHECK_CUDA;
 
@@ -320,7 +320,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::exclusiveScanWriteSum( output_d,
                                              zerocopy_d,
@@ -338,12 +338,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 if( output[i] != sum ) {
                     fails++;
@@ -365,7 +365,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::exclusiveScanPadWithSum( output_d,
                                            scratch_d,
@@ -381,12 +381,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 if( output[i] != sum ) {
                     fails++;
@@ -404,9 +404,9 @@ int main( int argc, char** argv )
         // exclusive scan with padded and written sum
         if(1) {
             unsigned int* zerocopy;
-            cudaHostAlloc( &zerocopy, sizeof(uint), cudaHostAllocMapped );
+            cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
 
-            uint* zerocopy_d;
+            unsigned int* zerocopy_d;
             cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
             CHECK_CUDA;
 
@@ -417,7 +417,7 @@ int main( int argc, char** argv )
             cudaEvent_t start, stop;
             cudaEventCreate( &start );
             cudaEventCreate( &stop );
-            cudaMemset( output_d, ~0u, sizeof(uint)*output.size() );
+            cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
             for(int i=0; i<(its+9)/10; i++) {
                 sist::scan::exclusiveScanPadWithSumWriteSum( output_d,
                                                        zerocopy_d,
@@ -435,12 +435,12 @@ int main( int argc, char** argv )
             }
             cudaEventRecord( stop );
             cudaEventSynchronize( stop );
-            cudaMemcpy( output.data(), output_d, sizeof(uint)*(output.size()), cudaMemcpyDeviceToHost  );
+            cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
             cudaEventElapsedTime( &ms, start, stop );
             CHECK_CUDA;
 
             int fails = 0;
-            uint sum = 0;
+            unsigned int sum = 0;
             for(int i=0; i<N; i++ ) {
                 if( output[i] != sum ) {
                     fails++;

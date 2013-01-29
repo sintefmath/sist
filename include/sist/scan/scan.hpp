@@ -55,7 +55,7 @@ namespace sist {
  * host memory, the sum is zero-copied directly to the host:
  * \code
  * unsigned int* zerocopy, zerocopy_d;
- * cudaHostAlloc( &zerocopy, sizeof(uint), cudaHostAllocMapped );
+ * cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
  * cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
  * Scan::inclusiveScanWriteSum( output_d,
  *                              zerocopy_d,
@@ -116,10 +116,10 @@ scratchBufferBytesize( const unsigned int N );
  * \author Christopher Dyken, <christopher.dyken@sintef.no>
  */
 void
-inclusiveScan( uint*         output_d,
+inclusiveScan( unsigned int*         output_d,
                void*         scratch_d,
-               const uint*   input_d,
-               const uint    N,
+               const unsigned int*   input_d,
+               const unsigned int    N,
                cudaStream_t  stream = 0);
 
 /** Perform an inclusive scan and write total sum to a location.
@@ -133,11 +133,11 @@ inclusiveScan( uint*         output_d,
  * \author Christopher Dyken, <christopher.dyken@sintef.no>
  */
 void
-inclusiveScanWriteSum( uint*         output_d,
-                       uint*         sum_d,
+inclusiveScanWriteSum( unsigned int*         output_d,
+                       unsigned int*         sum_d,
                        void*         scratch_d,
-                       const uint*   input_d,
-                       const uint    N,
+                       const unsigned int*   input_d,
+                       const unsigned int    N,
                        cudaStream_t  stream = 0 );
 
 
@@ -151,10 +151,10 @@ inclusiveScanWriteSum( uint*         output_d,
  * \author Christopher Dyken, <christopher.dyken@sintef.no>
  */
 void
-exclusiveScan( uint*         output_d,
+exclusiveScan( unsigned int*         output_d,
                void*         scratch_d,
-               const uint*   input_d,
-               const uint    N,
+               const unsigned int*   input_d,
+               const unsigned int    N,
                cudaStream_t  stream = 0);
 
 /** Perform an exclusive scan and write total sum to a location.
@@ -168,11 +168,11 @@ exclusiveScan( uint*         output_d,
  * \author Christopher Dyken, <christopher.dyken@sintef.no>
  */
 void
-exclusiveScanWriteSum( uint*         output_d,
-                       uint*         sum_d,
+exclusiveScanWriteSum( unsigned int*         output_d,
+                       unsigned int*         sum_d,
                        void*         scratch_d,
-                       const uint*   input_d,
-                       const uint    N,
+                       const unsigned int*   input_d,
+                       const unsigned int    N,
                        cudaStream_t  stream = 0);
 
 
@@ -189,8 +189,8 @@ exclusiveScanWriteSum( uint*         output_d,
  *
  * Exclusive scan produces the following result:
  * \code
- * uint sum = 0;
- * for(uint i=0; i<N; i++) {
+ * unsigned int sum = 0;
+ * for(unsigned int i=0; i<N; i++) {
  *     output[i] = sum;
  *     sum       = sum + input[i];
  * }
@@ -202,18 +202,18 @@ exclusiveScanWriteSum( uint*         output_d,
  * \author Christopher Dyken, <christopher.dyken@sintef.no>
  */
 void
-exclusiveScanPadWithSum( uint*         output_d,
+exclusiveScanPadWithSum( unsigned int*         output_d,
                          void*         scratch_d,
-                         const uint*   input_d,
-                         const uint    N,
+                         const unsigned int*   input_d,
+                         const unsigned int    N,
                          cudaStream_t  stream = 0);
 
 void
-exclusiveScanPadWithSumWriteSum( uint*         output_d,
-                                 uint*         sum_d,
+exclusiveScanPadWithSumWriteSum( unsigned int*         output_d,
+                                 unsigned int*         sum_d,
                                  void*         scratch_d,
-                                 const uint*   input_d,
-                                 const uint    N,
+                                 const unsigned int*   input_d,
+                                 const unsigned int    N,
                                  cudaStream_t  stream = 0);
 
 
