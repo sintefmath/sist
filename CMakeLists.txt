@@ -32,6 +32,8 @@ IF( ENABLE_CUDA )
     OPTION( CUDA_DEBUG_GDB "Add flags thad cuda-gdb wants" OFF )
     OPTION( CUDA_VERBOSE_PTXAS "Let ptxas be verbose about resource usage" ON )
 
+	ADD_DEFINITIONS( -D_ITERATOR_DEBUG_LEVEL=0 )
+
     IF( CUDA_VERBOSE_PTXAS )
         SET( MY_NVCC_OPTIONS "${MY_NVCC_OPTIONS} --ptxas-options=-v"  )
     ENDIF( CUDA_VERBOSE_PTXAS )
@@ -61,18 +63,25 @@ IF( ENABLE_CUDA )
 
     SET(CUDA_NVCC_FLAGS ${MY_NVCC_OPTIONS})
     CUDA_ADD_LIBRARY( cusist STATIC ${CUSIST_HDRS} ${CUSIST_SRCS} )
+    
     TARGET_LINK_LIBRARIES( cusist )
 
 
     IF( ENABLE_TESTS )
         FIND_PACKAGE(Boost REQUIRED COMPONENTS unit_test_framework)
-
+        
         # The scan test compares itself against cudpp
         FIND_LIBRARY( CUDPP_LIBRARY cudpp PATHS /work/cudpp_src_2.0/lib )
         FIND_PATH( CUDPP_INCLUDE_DIR cudpp.h PATHS /work/cudpp_src_2.0/include )
         INCLUDE_DIRECTORIES(
             ${CUDPP_INCLUDE_DIR}
+            ${Boost_INCLUDE_DIRS}
         )
+
+        ADD_DEFINITIONS( -DCUDPP_STATIC_LIB )
+        # Needed for Boost-autolinking on Windows.
+        # This avoids conflict if you have vc100 and vc110 compiled Boost-libs.
+        LINK_DIRECTORIES( ${Boost_LIBRARY_DIRS} )
 
         FILE( GLOB CUSIST_TEST_HDRS "test/scan/*.hpp"
                                     "test/hp5/*.hpp" )
