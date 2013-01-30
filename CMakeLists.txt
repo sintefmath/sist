@@ -32,6 +32,8 @@ IF( ENABLE_CUDA )
     OPTION( CUDA_DEBUG_GDB "Add flags thad cuda-gdb wants" OFF )
     OPTION( CUDA_VERBOSE_PTXAS "Let ptxas be verbose about resource usage" ON )
 
+	ADD_DEFINITIONS( -D_ITERATOR_DEBUG_LEVEL=0 )
+
     IF( CUDA_VERBOSE_PTXAS )
         SET( MY_NVCC_OPTIONS "${MY_NVCC_OPTIONS} --ptxas-options=-v"  )
     ENDIF( CUDA_VERBOSE_PTXAS )
@@ -61,6 +63,7 @@ IF( ENABLE_CUDA )
 
     SET(CUDA_NVCC_FLAGS ${MY_NVCC_OPTIONS})
     CUDA_ADD_LIBRARY( cusist STATIC ${CUSIST_HDRS} ${CUSIST_SRCS} )
+    
     TARGET_LINK_LIBRARIES( cusist )
 
 
@@ -75,6 +78,7 @@ IF( ENABLE_CUDA )
             ${Boost_INCLUDE_DIRS}
         )
 
+        ADD_DEFINITIONS( -DCUDPP_STATIC_LIB )
         # Needed for Boost-autolinking on Windows.
         # This avoids conflict if you have vc100 and vc110 compiled Boost-libs.
         LINK_DIRECTORIES( ${Boost_LIBRARY_DIRS} )
