@@ -21,7 +21,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <string>
-#include <random>
+//#include <random>
 #include <algorithm>
 #include <functional>
 #include <cuda_runtime.h>
@@ -97,6 +97,7 @@ int main( int argc, char** argv )
 
 
 
+
 #if 1
     for(int N=input.size(); N>0; N = N/2.15 ) {
 #else
@@ -104,12 +105,17 @@ int main( int argc, char** argv )
         int N=743;
 #endif
         std::cerr << "N=" << N << "\n";
-        std::default_random_engine dre;
-        std::uniform_int_distribution<unsigned int> di( 0, 255 );
-        auto dice = std::bind( di, dre );
-      
-        std::generate( input.begin(), input.end(), dice );
-      
+        //std::default_random_engine dre;
+        //std::uniform_int_distribution<unsigned int> di( 0, 255 );
+        //auto dice = std::bind( di, dre );
+
+        //std::generate( input.begin(), input.end(), dice );
+
+        srand( 42 );
+        for(size_t i=0; i<input.size(); i++ ) {
+            input[i] = rand() & 0xffu;
+        }
+
         cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );
 
         float ref;
