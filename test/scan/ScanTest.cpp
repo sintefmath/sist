@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <string>
+#include <random>
 #include <cuda_runtime.h>
 #include <sist/scan/scan.hpp>
 #include <cudpp.h>
@@ -101,10 +102,10 @@ int main( int argc, char** argv )
         int N=743;
 #endif
         std::cerr << "N=" << N << "\n";
-
+        std::default_random_engine dre;
+        std::uniform_int_distribution<unsigned int> di( 0, 255 );
         for(size_t i=0; i<N; i++ ) {
-//            input[i] = i%13;// (unsigned int)(128*drand48());
-            input[i] = (unsigned int)(128*drand48());
+            input[i] = di( dre );
         }
         cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );
 
