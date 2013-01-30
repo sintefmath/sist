@@ -20,6 +20,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
+#include <string>
 #include <cuda_runtime.h>
 #include <sist/scan/scan.hpp>
 #include <cudpp.h>
