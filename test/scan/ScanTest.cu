@@ -27,6 +27,9 @@
 #include <cuda_runtime.h>
 #include <sist/scan/scan.hpp>
 #include <cudpp.h>
+#include <thrust/scan.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 
 /** Helper macro that checks for CUDA errors, and exits if any. */
@@ -96,7 +99,82 @@ int main( int argc, char** argv )
     cudppCreate( &cudpp_handle );
 
 
+class BenchmarkThrustScan {
+public:
+    BenchmarkThrustScan(
+        unsigned int* input_d, unsigned int* output_d,
+        const std::vector<unsigned int>& input, std::vector<unsigned int>& output  )
+        :
+          input_d( thrust::device_pointer_cast( input_d ) ),
+          output_d( thrust::device_pointer_cast( output_d ) ),
+          input( input ),
+          output( output ),
+          its(100)
+    {
 
+    }
+
+    void benchmarkScan( size_t N, float ref ) {
+         ms = 0;
+         cudaEvent_t start, stop;
+         cudaEventCreate( &start );
+         cudaEventCreate( &stop );
+                    
+          for(int i=0; i<(its+9)/10; i++) {
+            doScan( N );
+          }
+          
+          cudaEventRecord( start );
+          for( int i = 0; i < its; ++i ) {
+              doScan( N );
+          }
+          cudaEventRecord( stop );
+          cudaMemcpy( output.data(), output_d.get(), sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
+          cudaEventSynchronize( stop );
+
+          cudaEventElapsedTime( &ms, start, stop );
+
+          validate_output( N, ref );
+
+    }
+
+    void doScan( size_t N ) {
+        thrust::exclusive_scan( input_d, input_d + N, output_d );
+    }
+
+    void validate_output(size_t N, float ref ) {
+        int fails = 0;
+        unsigned int sum = 0;
+        for(size_t i=0; i<N; i++ ) {
+            if( output[i] != sum ) {
+                fails++;
+            }
+            sum += input[i];
+        }
+        std::cerr << "\tTHRUST\tE="<< fails
+            << "\t"
+            << "\t"
+            << "\ttime=" << (ms/its) << "ms"
+             << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
+    }
+    
+private:
+    //thrust::device_vector<unsigned int> input_d;
+    //thrust::device_vector<unsigned int> output_d;
+    thrust::device_ptr<unsigned int> input_d;
+    thrust::device_ptr<unsigned int> output_d;
+
+    //unsigned int* input_d;
+    //unsigned int* output_d;
+    size_t input_elements;
+    const std::vector<unsigned int>& input;
+    //std::vector<unsigned int>& output;
+    thrust::host_vector<unsigned int> output;
+    
+    float ms;
+    int its;
+
+};
 
 #if 1
     for(int N=input.size(); N>0; N = N/2.15 ) {
@@ -175,6 +253,9 @@ int main( int argc, char** argv )
                       << "\ttime=" << (ms/its) << "ms.\n";
             ref = ms/its;
         }
+
+        BenchmarkThrustScan thrustScan( input_d, output_d, input, output );
+        thrustScan.benchmarkScan( N, ref );
 
         // inclusive scan
         if(1) {

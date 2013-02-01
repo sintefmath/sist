@@ -32,7 +32,7 @@ IF( ENABLE_CUDA )
     OPTION( CUDA_DEBUG_GDB "Add flags thad cuda-gdb wants" OFF )
     OPTION( CUDA_VERBOSE_PTXAS "Let ptxas be verbose about resource usage" ON )
 
-	ADD_DEFINITIONS( -D_ITERATOR_DEBUG_LEVEL=0 )
+    ADD_DEFINITIONS( -D_ITERATOR_DEBUG_LEVEL=0 )
 
     IF( CUDA_VERBOSE_PTXAS )
         SET( MY_NVCC_OPTIONS "${MY_NVCC_OPTIONS} --ptxas-options=-v"  )
@@ -95,7 +95,7 @@ IF( ENABLE_CUDA )
         SOURCE_GROUP( "CUSIST test sources" FILES ${CUSIST_TEST_SRCS} )
 
         CUDA_ADD_EXECUTABLE( test_scan ${CUSIST_HDRS}
-                             "test/scan/ScanTest.cpp" )
+                             "test/scan/ScanTest.cu" )
         TARGET_LINK_LIBRARIES( test_scan cusist ${CUDPP_LIBRARY} )
 
         CUDA_ADD_EXECUTABLE( test_simple_compact ${CUSIST_HDRS}
