@@ -58,7 +58,7 @@
 struct ScanFixture {
 
     ScanFixture() {
-        /*input.resize( 1024 );
+        input.resize( 1024 );
         output.resize( input.size() + 1 );
 
         srand( 42 );
@@ -71,17 +71,17 @@ struct ScanFixture {
         cudaMalloc( &output_d, sizeof(unsigned int)*(output.size()) );
         cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
 
-        cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );*/
+        cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );
     }
 
     ~ScanFixture() {
-        /*cudaFree( input_d );
+        cudaFree( input_d );
         cudaFree( output_d );
         cudaFree( scratch_d );
 
         cudaFree( input_d );
         cudaFree( output_d );
-        cudaFree( scratch_d );*/
+        cudaFree( scratch_d );
     }
 
     std::vector<unsigned int> input;
@@ -152,23 +152,23 @@ public:
 };
 
 
-class BenchmarkThrustScan /*: public AbstractScanBenchmark */{
+class BenchmarkThrustScan : public AbstractScanBenchmark {
 public:
     BenchmarkThrustScan(
         unsigned int* input_d, unsigned int* output_d,
         const std::vector<unsigned int>& input, std::vector<unsigned int>& output  )
         :
-          //AbstractScanBenchmark( input_d, output_d, input, output ),
+          AbstractScanBenchmark( input_d, output_d, input, output ),
           input_d( thrust::device_pointer_cast( input_d ) ),
-          output_d( thrust::device_pointer_cast( output_d ) ),
-          input( input ), output( output )
+          output_d( thrust::device_pointer_cast( output_d ) )/*,
+          input( input ), output( output )*/
     {
-         cudaEventCreate( &start );
-        cudaEventCreate( &stop );
+         //cudaEventCreate( &start );
+        //cudaEventCreate( &stop );
     }
-
+/*
     void benchmarkScan( size_t N, float ref ) {
-            its = 100;
+            //its = 100;
          ms = 0;
                              
           for(int i=0; i<(its+9)/10; i++) {
@@ -188,7 +188,7 @@ public:
           validate_output( N, ref );
 
     }
-
+    */
     void doScan( size_t N ) {
         thrust::exclusive_scan( input_d, input_d + N, output_d );
     }
@@ -215,16 +215,16 @@ private:
     thrust::device_ptr<unsigned int> output_d;
     
     //size_t input_elements;
-    const std::vector<unsigned int>& input;
-    thrust::host_vector<unsigned int> output;
+    //const std::vector<unsigned int>& input;
+    //thrust::host_vector<unsigned int> output;
     
-    float ms;
-    int its;
+    //float ms;
+    //int its;
 
     
 
-    cudaEvent_t start;
-    cudaEvent_t stop;
+    //cudaEvent_t start;
+    //cudaEvent_t stop;
 
 };
 
