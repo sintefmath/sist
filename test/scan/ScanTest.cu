@@ -96,14 +96,16 @@ struct ScanFixture {
 class AbstractScanBenchmark {
 public:
     AbstractScanBenchmark( 
-        unsigned int* input_d, unsigned int* output_d, 
+        unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
         const std::vector<unsigned int>& input, std::vector<unsigned int>& output ) 
         : 
         input( input ),
         output( output ), 
         input_d( input_d ),
         output_d( output_d ),
-        its( 100 ) 
+        scratch_d( scratch_d ),
+        its( 100 ), 
+        fails(-1)
     {
         cudaEventCreate( &start );
         cudaEventCreate( &stop );
@@ -149,16 +151,17 @@ public:
     std::vector<unsigned int>& output;
     unsigned int* input_d;
     unsigned int* output_d;
+    unsigned int* scratch_d;
 };
 
 
 class BenchmarkThrustScan : public AbstractScanBenchmark {
 public:
     BenchmarkThrustScan(
-        unsigned int* input_d, unsigned int* output_d,
+        unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
         const std::vector<unsigned int>& input, std::vector<unsigned int>& output  )
         :
-          AbstractScanBenchmark( input_d, output_d, input, output ),
+          AbstractScanBenchmark( input_d, output_d, scratch_d, input, output ),
           input_d( thrust::device_pointer_cast( input_d ) ),
           output_d( thrust::device_pointer_cast( output_d ) )/*,
           input( input ), output( output )*/
@@ -228,15 +231,44 @@ private:
 
 };
 
-//class BenchmarkInclusiveScan : public AbstractScanBenchmark {
-//};
+class BenchmarkSistInclusiveScan : public AbstractScanBenchmark {
+public:
+    BenchmarkSistInclusiveScan( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {}
 
+    void doScan( size_t N ) {
+         sist::scan::inclusiveScan( output_d, scratch_d, input_d, N );
+    }
 
+    void validate_output(size_t N, float ref ) {
+        fails = 0;
+        unsigned int sum = 0;
+        for(int i=0; i<N; i++ ) {
+            sum += input[i];
+            if( output[i] != sum ) {
+                fails++;
+            }
+        }
+        std::cerr << "\tin\tE="<< fails
+            << "\tS=" << (output[N]==~0u?"ok":"ERR" )
+            << "\t"
+            << "\ttime=" << (ms/its) << "ms"
+            << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
+    }
+};
 
 #ifdef BOOST_TEST
 BOOST_FIXTURE_TEST_CASE( BenchMarkThrustScan, ScanFixture ) {
 //BOOST_AUTO_TEST_CASE( BenchMarkThrustScan/*, ScanFixture*/ ) {
-    BenchmarkThrustScan bench( input_d, output_d, input, output );
+    BenchmarkThrustScan bench( input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+    BOOST_CHECK_EQUAL( bench.fails, 0 );
+}
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScan, ScanFixture ) {
+    BenchmarkSistInclusiveScan bench(  input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
     BOOST_CHECK_EQUAL( bench.fails, 0 );
 }
@@ -377,7 +409,7 @@ int main( int argc, char** argv )
             ref = ms/its;
         }
 
-        BenchmarkThrustScan thrustScan( input_d, output_d, input, output );
+        BenchmarkThrustScan thrustScan( input_d, output_d, scratch_d, input, output );
         thrustScan.benchmarkScan( N, ref );
 
         // inclusive scan
