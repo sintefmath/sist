@@ -58,6 +58,7 @@
 struct ScanFixture {
 
     ScanFixture() {
+        CHECK_CUDA;
         input.resize( 1024 );
         output.resize( input.size() + 1 );
 
@@ -65,23 +66,23 @@ struct ScanFixture {
         for(size_t i=0; i<input.size(); i++ ) {
             input[i] = rand() & 0xffu;        
         }
-
+        
         cudaMalloc( &input_d, sizeof(unsigned int)*(input.size()) );
         cudaMalloc( &scratch_d, sist::scan::scratchBufferBytesize( input.size() ) );
         cudaMalloc( &output_d, sizeof(unsigned int)*(output.size()) );
         cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
 
         cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );
+
+        CHECK_CUDA;
     }
 
     ~ScanFixture() {
+        CHECK_CUDA;
         cudaFree( input_d );
         cudaFree( output_d );
         cudaFree( scratch_d );
-
-        cudaFree( input_d );
-        cudaFree( output_d );
-        cudaFree( scratch_d );
+        CHECK_CUDA;
     }
 
     std::vector<unsigned int> input;
@@ -110,6 +111,7 @@ public:
         cudaEventCreate( &start );
         cudaEventCreate( &stop );
 
+        CHECK_CUDA;
     }
 
     ~AbstractScanBenchmark() {
@@ -163,35 +165,10 @@ public:
         :
           AbstractScanBenchmark( input_d, output_d, scratch_d, input, output ),
           input_d( thrust::device_pointer_cast( input_d ) ),
-          output_d( thrust::device_pointer_cast( output_d ) )/*,
-          input( input ), output( output )*/
-    {
-         //cudaEventCreate( &start );
-        //cudaEventCreate( &stop );
+          output_d( thrust::device_pointer_cast( output_d ) )
+    {         
     }
-/*
-    void benchmarkScan( size_t N, float ref ) {
-            //its = 100;
-         ms = 0;
-                             
-          for(int i=0; i<(its+9)/10; i++) {
-            doScan( N );
-          }
-          
-          cudaEventRecord( start );
-          for( int i = 0; i < its; ++i ) {
-              doScan( N );
-          }
-          cudaEventRecord( stop );
-          cudaMemcpy( output.data(), output_d.get(), sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
-          cudaEventSynchronize( stop );
 
-          cudaEventElapsedTime( &ms, start, stop );
-
-          validate_output( N, ref );
-
-    }
-    */
     void doScan( size_t N ) {
         thrust::exclusive_scan( input_d, input_d + N, output_d );
     }
@@ -216,19 +193,6 @@ public:
 private:    
     thrust::device_ptr<unsigned int> input_d;
     thrust::device_ptr<unsigned int> output_d;
-    
-    //size_t input_elements;
-    //const std::vector<unsigned int>& input;
-    //thrust::host_vector<unsigned int> output;
-    
-    //float ms;
-    //int its;
-
-    
-
-    //cudaEvent_t start;
-    //cudaEvent_t stop;
-
 };
 
 class BenchmarkSistInclusiveScan : public AbstractScanBenchmark {
@@ -259,6 +223,55 @@ public:
     }
 };
 
+class BenchmarkSistInclusiveScanWithSum : public AbstractScanBenchmark {
+public:
+    BenchmarkSistInclusiveScanWithSum( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {
+         //unsigned int* zerocopy;
+            cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
+
+           // unsigned int* zerocopy_d;
+            cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
+            CHECK_CUDA;
+
+            *zerocopy = 42;
+    }
+
+    ~BenchmarkSistInclusiveScanWithSum() {
+        cudaFreeHost( zerocopy );
+    }
+
+    void doScan( size_t N ) {
+        sist::scan::inclusiveScanWriteSum( output_d,
+            zerocopy_d,
+            scratch_d,
+            input_d,
+            N );
+    }
+
+    void validate_output( size_t N, float ref ) {
+        fails = 0;
+        unsigned int sum = 0;
+        for(int i=0; i<N; i++ ) {
+            sum += input[i];
+            if( output[i] != sum ) {
+                fails++;
+            }
+        }
+        std::cerr << "\tin+S\tE="<< fails
+            << "\tS=" << (output[N]==~0u?"ok":"ERR" )
+            << "\tZ=" << ((*zerocopy == sum) ? "ok":"ERR" )
+            << "\ttime=" << (ms/its) << "ms"
+            << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";    
+    }
+
+    unsigned int* zerocopy;
+    unsigned int* zerocopy_d;
+
+};
+
 #ifdef BOOST_TEST
 BOOST_FIXTURE_TEST_CASE( BenchMarkThrustScan, ScanFixture ) {
 //BOOST_AUTO_TEST_CASE( BenchMarkThrustScan/*, ScanFixture*/ ) {
@@ -269,6 +282,13 @@ BOOST_FIXTURE_TEST_CASE( BenchMarkThrustScan, ScanFixture ) {
 
 BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScan, ScanFixture ) {
     BenchmarkSistInclusiveScan bench(  input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+    BOOST_CHECK_EQUAL( bench.fails, 0 );
+}
+
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScanWithSum, ScanFixture ) {
+    BenchmarkSistInclusiveScanWithSum bench(  input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
     BOOST_CHECK_EQUAL( bench.fails, 0 );
 }
