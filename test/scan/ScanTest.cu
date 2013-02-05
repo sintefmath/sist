@@ -3,6 +3,7 @@
  * This file is part of the SIST Library.
  *
  * Author(s): Christopher Dyken, <christopher.dyken@sintef.no>
+ *            Johan Seland, <johan.seland@sintef.no>
  *
  * SIST is free software: you can redistribute it and/or modify it under the
  * terms of the GNU General Public License as published by the Free Software
@@ -21,7 +22,6 @@
 #include <cstdlib>
 #include <cmath>
 #include <string>
-//#include <random>
 #include <algorithm>
 #include <functional>
 #include <cuda_runtime.h>
@@ -31,6 +31,16 @@
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
+#define BOOST_TEST
+
+#ifdef BOOST_TEST
+#define BOOST_TEST_DYN_LINK
+#define BOOST_TEST_MODULE ScanTest
+
+#include <boost/test/unit_test.hpp>
+#include <boost/test/parameterized_test.hpp>
+
+#endif // BOOST_TEST
 
 /** Helper macro that checks for CUDA errors, and exits if any. */
 #define CHECK_CUDA do {                                                        \
@@ -45,8 +55,196 @@
     }                                                                          \
 } while(0)
 
+struct ScanFixture {
 
+    ScanFixture() {
+        /*input.resize( 1024 );
+        output.resize( input.size() + 1 );
+
+        srand( 42 );
+        for(size_t i=0; i<input.size(); i++ ) {
+            input[i] = rand() & 0xffu;        
+        }
+
+        cudaMalloc( &input_d, sizeof(unsigned int)*(input.size()) );
+        cudaMalloc( &scratch_d, sist::scan::scratchBufferBytesize( input.size() ) );
+        cudaMalloc( &output_d, sizeof(unsigned int)*(output.size()) );
+        cudaMemset( output_d, ~0u, sizeof(unsigned int)*output.size() );
+
+        cudaMemcpy( input_d, input.data(), sizeof(unsigned int)*input.size(), cudaMemcpyHostToDevice );*/
+    }
+
+    ~ScanFixture() {
+        /*cudaFree( input_d );
+        cudaFree( output_d );
+        cudaFree( scratch_d );
+
+        cudaFree( input_d );
+        cudaFree( output_d );
+        cudaFree( scratch_d );*/
+    }
+
+    std::vector<unsigned int> input;
+    std::vector<unsigned int> output;  
+
+    unsigned int* input_d;
+    unsigned int* output_d;
+    unsigned int* scratch_d;
+};
+    
+
+class AbstractScanBenchmark {
+public:
+    AbstractScanBenchmark( 
+        unsigned int* input_d, unsigned int* output_d, 
+        const std::vector<unsigned int>& input, std::vector<unsigned int>& output ) 
+        : 
+        input( input ),
+        output( output ), 
+        input_d( input_d ),
+        output_d( output_d ),
+        its( 100 ) 
+    {
+        cudaEventCreate( &start );
+        cudaEventCreate( &stop );
+
+    }
+
+    ~AbstractScanBenchmark() {
+        cudaEventDestroy( start );
+        cudaEventDestroy( stop );
+    }
+
+    virtual void benchmarkScan( size_t N, float ref ) {
+        ms = 0.0f;
+        // WarmUp
+        for(int i=0; i<(its+9)/10; i++) {
+            doScan( N );
+        }
+
+        // Benchmark
+        cudaEventRecord( start );
+        for( int i = 0; i < its; ++i ) {
+              doScan( N );
+        }
+        cudaEventRecord( stop );
+        cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
+        cudaEventSynchronize( stop );
+
+        cudaEventElapsedTime( &ms, start, stop );
+
+        validate_output( N, ref );
+    }
+
+    virtual void validate_output( size_t N, float ref ) = 0;    
+    virtual void doScan( size_t N ) = 0;
+
+    int fails;
+    float ms;
+    const int its;
+
+    cudaEvent_t start;
+    cudaEvent_t stop;
+    const std::vector<unsigned int>& input;
+    std::vector<unsigned int>& output;
+    unsigned int* input_d;
+    unsigned int* output_d;
+};
+
+
+class BenchmarkThrustScan /*: public AbstractScanBenchmark */{
+public:
+    BenchmarkThrustScan(
+        unsigned int* input_d, unsigned int* output_d,
+        const std::vector<unsigned int>& input, std::vector<unsigned int>& output  )
+        :
+          //AbstractScanBenchmark( input_d, output_d, input, output ),
+          input_d( thrust::device_pointer_cast( input_d ) ),
+          output_d( thrust::device_pointer_cast( output_d ) ),
+          input( input ), output( output )
+    {
+         cudaEventCreate( &start );
+        cudaEventCreate( &stop );
+    }
+
+    void benchmarkScan( size_t N, float ref ) {
+            its = 100;
+         ms = 0;
+                             
+          for(int i=0; i<(its+9)/10; i++) {
+            doScan( N );
+          }
+          
+          cudaEventRecord( start );
+          for( int i = 0; i < its; ++i ) {
+              doScan( N );
+          }
+          cudaEventRecord( stop );
+          cudaMemcpy( output.data(), output_d.get(), sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
+          cudaEventSynchronize( stop );
+
+          cudaEventElapsedTime( &ms, start, stop );
+
+          validate_output( N, ref );
+
+    }
+
+    void doScan( size_t N ) {
+        thrust::exclusive_scan( input_d, input_d + N, output_d );
+    }
+
+    void validate_output(size_t N, float ref ) {
+        fails = 0;
+        unsigned int sum = 0;
+        for(size_t i=0; i<N; i++ ) {
+            if( output[i] != sum ) {
+                fails++;
+            }
+            sum += input[i];
+        }
+        std::cerr << "\tTHRUST\tE="<< fails
+            << "\t"
+            << "\t"
+            << "\ttime=" << (ms/its) << "ms"
+             << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
+    }
+ 
+    int fails;
+private:    
+    thrust::device_ptr<unsigned int> input_d;
+    thrust::device_ptr<unsigned int> output_d;
+    
+    //size_t input_elements;
+    const std::vector<unsigned int>& input;
+    thrust::host_vector<unsigned int> output;
+    
+    float ms;
+    int its;
+
+    
+
+    cudaEvent_t start;
+    cudaEvent_t stop;
+
+};
+
+//class BenchmarkInclusiveScan : public AbstractScanBenchmark {
+//};
+
+
+
+#ifdef BOOST_TEST
+BOOST_FIXTURE_TEST_CASE( BenchMarkThrustScan, ScanFixture ) {
+//BOOST_AUTO_TEST_CASE( BenchMarkThrustScan/*, ScanFixture*/ ) {
+    BenchmarkThrustScan bench( input_d, output_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+    BOOST_CHECK_EQUAL( bench.fails, 0 );
+}
+
+int old_main( int argc, char** argv )
+#else
 int main( int argc, char** argv )
+#endif // BOOST_TEST
 {
     int cuda_device = 0;
 
@@ -99,82 +297,7 @@ int main( int argc, char** argv )
     cudppCreate( &cudpp_handle );
 
 
-class BenchmarkThrustScan {
-public:
-    BenchmarkThrustScan(
-        unsigned int* input_d, unsigned int* output_d,
-        const std::vector<unsigned int>& input, std::vector<unsigned int>& output  )
-        :
-          input_d( thrust::device_pointer_cast( input_d ) ),
-          output_d( thrust::device_pointer_cast( output_d ) ),
-          input( input ),
-          output( output ),
-          its(100)
-    {
 
-    }
-
-    void benchmarkScan( size_t N, float ref ) {
-         ms = 0;
-         cudaEvent_t start, stop;
-         cudaEventCreate( &start );
-         cudaEventCreate( &stop );
-                    
-          for(int i=0; i<(its+9)/10; i++) {
-            doScan( N );
-          }
-          
-          cudaEventRecord( start );
-          for( int i = 0; i < its; ++i ) {
-              doScan( N );
-          }
-          cudaEventRecord( stop );
-          cudaMemcpy( output.data(), output_d.get(), sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
-          cudaEventSynchronize( stop );
-
-          cudaEventElapsedTime( &ms, start, stop );
-
-          validate_output( N, ref );
-
-    }
-
-    void doScan( size_t N ) {
-        thrust::exclusive_scan( input_d, input_d + N, output_d );
-    }
-
-    void validate_output(size_t N, float ref ) {
-        int fails = 0;
-        unsigned int sum = 0;
-        for(size_t i=0; i<N; i++ ) {
-            if( output[i] != sum ) {
-                fails++;
-            }
-            sum += input[i];
-        }
-        std::cerr << "\tTHRUST\tE="<< fails
-            << "\t"
-            << "\t"
-            << "\ttime=" << (ms/its) << "ms"
-             << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
-    }
-    
-private:
-    //thrust::device_vector<unsigned int> input_d;
-    //thrust::device_vector<unsigned int> output_d;
-    thrust::device_ptr<unsigned int> input_d;
-    thrust::device_ptr<unsigned int> output_d;
-
-    //unsigned int* input_d;
-    //unsigned int* output_d;
-    size_t input_elements;
-    const std::vector<unsigned int>& input;
-    //std::vector<unsigned int>& output;
-    thrust::host_vector<unsigned int> output;
-    
-    float ms;
-    int its;
-
-};
 
 #if 1
     for(int N=input.size(); N>0; N = N/2.15 ) {
@@ -551,6 +674,7 @@ private:
 
     }
 
+    return EXIT_SUCCESS;
 
 }
 
