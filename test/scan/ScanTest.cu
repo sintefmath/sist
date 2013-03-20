@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <functional>
 #include <numeric>
+#include <typeinfo>
+#include <map>
 #include <cuda_runtime.h>
 #include <sist/scan/scan.hpp>
 #include <cudpp.h>
@@ -40,8 +42,20 @@
 
 #include <boost/test/unit_test.hpp>
 #include <boost/test/parameterized_test.hpp>
+#include <boost/test/test_case_template.hpp>
+#include <boost/mpl/list.hpp>
 
 #endif // BOOST_TEST
+
+/** This file defines tests for the various scan-implemenations in SIST and also allows for
+     benchmarking against Thrust and CUDPP, the latter only in release mode on Windows.
+
+     The various scan-algorithms are called by overriding AbstractScanBenchmark::doScan below.
+     The testing of results are done in BOOST_FIXTURE_TEST cases at the bottom of the file. 
+
+     Due to the design of Boost test, one must pass --log_level=message as input to the program to see
+     timings.
+*/
 
 /** Helper macro that checks for CUDA errors, and exits if any. */
 #define CHECK_CUDA do {                                                        \
@@ -56,9 +70,13 @@
     }                                                                          \
 } while(0)
 
+/** ScanFixture allocates GPU and CPUto be used by all the various scan implemntations.
+    It populates the input with random data and computes the sum of the input to be used 
+    by all the tests for validation.
+*/
 struct ScanFixture {
 
-    ScanFixture() : N(1024) {
+    ScanFixture( unsigned int numElements = 1024u ) : N( numElements ) {
         CHECK_CUDA;
         input.resize( N );
         output.resize( input.size() + 1 );
@@ -100,6 +118,8 @@ struct ScanFixture {
 };
     
 
+/** AbstractScanBenchmark is responsible for priming (warmup) and execution of the various scan algorithms. 
+    The concrete call to a given scan implemenation is handled by overriding the doScan-method. */
 class AbstractScanBenchmark {
 public:
     AbstractScanBenchmark( 
@@ -141,6 +161,7 @@ public:
         cudaEventSynchronize( stop );
 
         cudaEventElapsedTime( &ms, start, stop );        
+        //BOOST_TEST_MESSAGE( "Time: " << ms/its << "ms" );
     }
     
     virtual void doScan( size_t N ) = 0;
@@ -194,6 +215,45 @@ public:
 private:    
     thrust::device_ptr<unsigned int> input_d;
     thrust::device_ptr<unsigned int> output_d;
+};
+
+class BenchmarkCUDPPExclusiveScan : public AbstractScanBenchmark {
+public:
+    BenchmarkCUDPPExclusiveScan( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                 const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output ),
+          scanplan( 0 )
+    {        
+        cudppCreate( &cudpp_handle );
+
+        cudpp_config.op 		= CUDPP_ADD;
+        cudpp_config.datatype 	= CUDPP_UINT;
+        cudpp_config.algorithm 	= CUDPP_SCAN;
+        cudpp_config.options	= CUDPP_OPTION_FORWARD | CUDPP_OPTION_EXCLUSIVE;
+
+        cudpp_res = cudppPlan( cudpp_handle, &scanplan, cudpp_config, input.size(), 1, 0 );
+            
+        if( cudpp_res != CUDPP_SUCCESS ) {            
+            throw std::runtime_error( "CUDPP Failed to init. " );
+       }
+    }
+
+    ~BenchmarkCUDPPExclusiveScan() {
+        cudppDestroy( cudpp_handle );
+    }
+
+
+    void doScan( size_t N ) {
+        cudpp_res = cudppScan( scanplan, output_d, input_d, N );
+        if( cudpp_res != CUDPP_SUCCESS ) {
+            throw std::runtime_error( "CUDPP failed during scan. ");
+        }
+    }
+
+    CUDPPHandle cudpp_handle;    
+    CUDPPConfiguration cudpp_config;            
+    CUDPPHandle scanplan;
+    CUDPPResult cudpp_res;
 };
 
 class BenchmarkSistExclusiveScan : public AbstractScanBenchmark {
@@ -312,7 +372,14 @@ public:
 BOOST_FIXTURE_TEST_CASE( BenchMarkThrustExclusiveScan, ScanFixture ) {
     BenchmarkThrustExclusiveScan bench( input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
-    
+        
+    check_exclusive_scan_result( input, output, N ); 
+}
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkCUDPPExclusiveScan, ScanFixture ) {
+    BenchmarkCUDPPExclusiveScan bench( input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+        
     check_exclusive_scan_result( input, output, N ); 
 }
 
@@ -321,7 +388,7 @@ BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScan, ScanFixture ) {
     bench.benchmarkScan( input.size(), 0.0f );
     
     check_exclusive_scan_result( input, output, N );
-    BOOST_CHECK_EQUAL( ~0u, bench.output[N] );
+    BOOST_CHECK_EQUAL( ~0u, bench.output[N ]);
 }
 
 BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScan, ScanFixture ) {
@@ -369,6 +436,42 @@ BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScanPadWithSumWriteSum, ScanFixtu
 }
 
 
+// The first element in this list is used as the reference performance in the PerformanceTest
+typedef boost::mpl::list<
+                         BenchmarkCUDPPExclusiveScan,
+                         BenchmarkThrustExclusiveScan, 
+                         BenchmarkSistInclusiveScan, BenchmarkSistInclusiveScanWithSum,
+                         BenchmarkSistExclusiveScan, BenchmarkSistExclusiveScanPadWithSum, BenchmarkSistExclusiveScanPadWithSumWriteSum>
+    testTypes;
+
+std::map<unsigned int, double> referencePerformance;
+
+BOOST_AUTO_TEST_CASE_TEMPLATE( PerformanceTest, T, testTypes ) 
+{
+    const int maxN = 0x1 << 20;    
+    BOOST_MESSAGE( typeid(T).name() );
+    for(int N = maxN; N>0; N = N/2.15 ) {    
+        ScanFixture s(  N ); 
+
+        T scan( s.input_d, s.output_d, s.scratch_d, s.input, s.output );
+        scan.benchmarkScan( s.input.size(), 0.0f );
+
+        auto performance = scan.ms/scan.its;
+        auto speedup = 1.0;
+        auto it = referencePerformance.find( N );
+
+        if ( it == referencePerformance.end() ) { // Establish reference performance
+            referencePerformance[N] = performance;
+        } else { // compute speedup relative to the reference
+            speedup = it->second/performance;
+        }
+
+        BOOST_MESSAGE( " size=" << N << "\t time=" << performance << " ms\t speedup=" << speedup  );
+    }
+}
+
+
+
 int old_main( int argc, char** argv )
 #else
 int main( int argc, char** argv )
@@ -406,7 +509,8 @@ int main( int argc, char** argv )
     cudaSetDevice( cuda_device );
 
 
-    std::vector<unsigned int> input( 0x03fffc00 );
+    //std::vector<unsigned int> input( 0x03fffc00 );
+    std::vector<unsigned int> input( 16384 );
     std::vector<unsigned int> output( input.size()+1 );
 
     unsigned int* input_d;
