@@ -111,8 +111,7 @@ public:
         input_d( input_d ),
         output_d( output_d ),
         scratch_d( scratch_d ),
-        its( 100 ), 
-        fails(-1)
+        its( 100 )
     {
         cudaEventCreate( &start );
         cudaEventCreate( &stop );
@@ -141,15 +140,11 @@ public:
         cudaMemcpy( output.data(), output_d, sizeof(unsigned int)*(output.size()), cudaMemcpyDeviceToHost  );
         cudaEventSynchronize( stop );
 
-        cudaEventElapsedTime( &ms, start, stop );
-
-        //validate_output( N, ref );
+        cudaEventElapsedTime( &ms, start, stop );        
     }
-
-    virtual void validate_output( size_t N, float ref ) = 0;    
+    
     virtual void doScan( size_t N ) = 0;
 
-    int fails;
     float ms;
     const int its;
 
@@ -195,27 +190,22 @@ public:
 
     void doScan( size_t N ) {
         thrust::exclusive_scan( input_d, input_d + N, output_d );
-    }
-
-    
-    void validate_output(size_t N, float ref ) {
-        fails = 0;
-        unsigned int sum = 0;
-        for(size_t i=0; i<N; i++ ) {
-            if( output[i] != sum ) {
-                fails++;
-            }
-            sum += input[i];
-        }
-        std::cerr << "\tTHRUST\tE="<< fails
-                  << "\t"
-                  << "\t"
-                  << "\ttime=" << (ms/its) << "ms"
-                  << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
-    }
+    }        
 private:    
     thrust::device_ptr<unsigned int> input_d;
     thrust::device_ptr<unsigned int> output_d;
+};
+
+class BenchmarkSistExclusiveScan : public AbstractScanBenchmark {
+public:
+     BenchmarkSistExclusiveScan( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {}
+
+     void doScan( size_t N ) {
+         sist::scan::exclusiveScan( output_d, scratch_d, input_d, N );
+     }
 };
 
 class BenchmarkSistInclusiveScan : public AbstractScanBenchmark {
@@ -227,23 +217,7 @@ public:
 
     void doScan( size_t N ) {
          sist::scan::inclusiveScan( output_d, scratch_d, input_d, N );
-    }
-
-    void validate_output(size_t N, float ref ) {
-        fails = 0;
-        unsigned int sum = 0;
-        for(unsigned int i=0; i<N; i++ ) {
-            sum += input[i];
-            if( output[i] != sum ) {
-                fails++;
-            }
-        }
-        std::cerr << "\tin\tE="<< fails
-                  << "\tS=" << (output[N]==~0u?"ok":"ERR" )
-                  << "\t"
-                  << "\ttime=" << (ms/its) << "ms"
-                  << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";
-    }
+    }    
 };
 
 class BenchmarkSistInclusiveScanWithSum : public AbstractScanBenchmark {
@@ -264,32 +238,74 @@ public:
     }
 
     void doScan( size_t N ) {
-        sist::scan::inclusiveScanWriteSum( output_d,
-            zerocopy_d,
-            scratch_d,
-            input_d,
-            N );
+        sist::scan::inclusiveScanWriteSum( output_d, zerocopy_d, scratch_d, input_d, N );
+    }
+    
+    unsigned int* zerocopy;
+    unsigned int* zerocopy_d;
+};
+
+class BenchmarkSistExclusiveScanWithSum : public AbstractScanBenchmark {
+public:
+    BenchmarkSistExclusiveScanWithSum( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {         
+        cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
+        cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
+        CHECK_CUDA;
+
+        *zerocopy = 42;
     }
 
-    void validate_output( size_t N, float ref ) {
-        fails = 0;
-        unsigned int sum = 0;
-        for(unsigned int i=0; i<N; i++ ) {
-            sum += input[i];
-            if( output[i] != sum ) {
-                fails++;
-            }
-        }
-        std::cerr << "\tin+S\tE="<< fails
-                  << "\tS=" << (output[N]==~0u?"ok":"ERR" )
-                  << "\tZ=" << ((*zerocopy == sum) ? "ok":"ERR" )
-                  << "\ttime=" << (ms/its) << "ms"
-                  << "\tspeedup=" << (ref/(ms/its)) <<"X.\n";    
+    ~BenchmarkSistExclusiveScanWithSum() {
+        cudaFreeHost( zerocopy );
     }
+
+    void doScan( size_t N ) {
+        sist::scan::exclusiveScanWriteSum( output_d, zerocopy_d, scratch_d, input_d, N );
+    }
+    
+    unsigned int* zerocopy;
+    unsigned int* zerocopy_d;
+};
+
+class BenchmarkSistExclusiveScanPadWithSum : public AbstractScanBenchmark {
+public:
+    BenchmarkSistExclusiveScanPadWithSum( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {}
+
+
+    void doScan( size_t N ) {
+        sist::scan::exclusiveScanPadWithSum( output_d, scratch_d, input_d, N );
+    }    
+};
+
+class BenchmarkSistExclusiveScanPadWithSumWriteSum : public AbstractScanBenchmark {
+public:
+    BenchmarkSistExclusiveScanPadWithSumWriteSum( unsigned int* input_d, unsigned int* output_d, unsigned int* scratch_d,
+                                const std::vector<unsigned int>& input, std::vector<unsigned int>& output  ) 
+        : AbstractScanBenchmark( input_d, output_d, scratch_d, input, output )
+    {
+        cudaHostAlloc( &zerocopy, sizeof(unsigned int), cudaHostAllocMapped );
+        cudaHostGetDevicePointer( &zerocopy_d, zerocopy, 0 );
+        CHECK_CUDA;
+
+        *zerocopy = 42;
+    }
+
+    ~BenchmarkSistExclusiveScanPadWithSumWriteSum() {
+        cudaFreeHost( zerocopy );
+    }
+
+    void doScan( size_t N ) {
+        sist::scan::exclusiveScanPadWithSumWriteSum( output_d, zerocopy_d, scratch_d, input_d, N );
+    }    
 
     unsigned int* zerocopy;
     unsigned int* zerocopy_d;
-
 };
 
 #ifdef BOOST_TEST
@@ -297,16 +313,22 @@ BOOST_FIXTURE_TEST_CASE( BenchMarkThrustExclusiveScan, ScanFixture ) {
     BenchmarkThrustExclusiveScan bench( input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
     
+    check_exclusive_scan_result( input, output, N ); 
+}
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScan, ScanFixture ) {
+    BenchmarkSistExclusiveScan bench(  input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+    
     check_exclusive_scan_result( input, output, N );
-    //BOOST_CHECK_EQUAL( bench.fails, 0 );
+    BOOST_CHECK_EQUAL( ~0u, bench.output[N] );
 }
 
 BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScan, ScanFixture ) {
     BenchmarkSistInclusiveScan bench(  input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
     
-    check_inclusive_scan_result( input, output, N );
-    //BOOST_CHECK_EQUAL( bench.fails, 0 );
+    check_inclusive_scan_result( input, output, N );    
     BOOST_CHECK_EQUAL( ~0u, bench.output[N] );
 }
 
@@ -314,13 +336,38 @@ BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScan, ScanFixture ) {
 BOOST_FIXTURE_TEST_CASE( BenchMarkSistInclusiveScanWithSum, ScanFixture ) {
     BenchmarkSistInclusiveScanWithSum bench(  input_d, output_d, scratch_d, input, output );
     bench.benchmarkScan( input.size(), 0.0f );
-    
-    //BOOST_CHECK_EQUAL( bench.fails, 0 );
+        
     check_inclusive_scan_result( input, output, N );
     BOOST_CHECK_EQUAL( ~0u, bench.output[N] );
-    BOOST_CHECK_EQUAL( sum_golden, *(bench.zerocopy) );
-    
+    BOOST_CHECK_EQUAL( sum_golden, *(bench.zerocopy) );    
 }
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScanWithSum, ScanFixture ) {
+    BenchmarkSistExclusiveScanWithSum bench(  input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+        
+    check_exclusive_scan_result( input, output, N );    
+    BOOST_CHECK_EQUAL( ~0u, bench.output[N] );
+    BOOST_CHECK_EQUAL( sum_golden, *(bench.zerocopy) );    
+}
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScanPadWithSum, ScanFixture ) {
+    BenchmarkSistExclusiveScanPadWithSum bench(  input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+        
+    check_exclusive_scan_result( input, output, N );    
+    BOOST_CHECK_EQUAL( sum_golden, bench.output[N] );    
+}
+
+BOOST_FIXTURE_TEST_CASE( BenchMarkSistExclusiveScanPadWithSumWriteSum, ScanFixture ) {
+    BenchmarkSistExclusiveScanPadWithSumWriteSum bench(  input_d, output_d, scratch_d, input, output );
+    bench.benchmarkScan( input.size(), 0.0f );
+        
+    check_exclusive_scan_result( input, output, N );    
+    BOOST_CHECK_EQUAL( sum_golden, bench.output[N] );
+    BOOST_CHECK_EQUAL( sum_golden, *(bench.zerocopy) );    
+}
+
 
 int old_main( int argc, char** argv )
 #else
