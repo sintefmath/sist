@@ -26,9 +26,9 @@ INCLUDE_DIRECTORIES(
 
 IF( ENABLE_CUDA )
     FIND_PACKAGE(CUDA REQUIRED)
-    OPTION( CUDA_GEN_SM20 "Generate compute capability 2.0 code" ON )
+    OPTION( CUDA_GEN_SM20 "Generate compute capability 2.0 code" OFF )
     OPTION( CUDA_GEN_SM30 "Generate compute capability 3.0 code" OFF )
-    OPTION( CUDA_GEN_FWD  "Generate beyond 3.0 compatible ptx code" OFF )
+    OPTION( CUDA_GEN_FWD  "Generate beyond 3.0 compatible ptx code" ON )
     OPTION( CUDA_DEBUG_GDB "Add flags thad cuda-gdb wants" OFF )
     OPTION( CUDA_VERBOSE_PTXAS "Let ptxas be verbose about resource usage" ON )
 
